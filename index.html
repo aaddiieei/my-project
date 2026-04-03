@@ -1,0 +1,2157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HydroSense Delhi — Urban Flood Risk Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:wght@700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #060a0f;
+    --surface: #0d1520;
+    --surface2: #111d2e;
+    --border: #1e3045;
+    --accent-blue: #00b4ff;
+    --accent-cyan: #00ffd5;
+    --risk-critical: #ff2d55;
+    --risk-high: #ff6b2b;
+    --risk-moderate: #ffc300;
+    --risk-low: #00e676;
+    --text-primary: #e8f4fd;
+    --text-muted: #5a7a96;
+    --font-display: 'Playfair Display', serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* HEADER */
+  header {
+    position: sticky;
+    top: 0;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(6,10,15,0.96);
+    backdrop-filter: blur(12px);
+    z-index: 1000;
+  }
+
+  .logo-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    position: relative;
+  }
+
+  .logo-icon svg { width: 100%; height: 100%; }
+
+  .logo-text h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .logo-text span {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--accent-cyan);
+    text-transform: uppercase;
+  }
+
+  .pulse-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent-cyan);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .season-tag {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+
+  /* ── HERO ────────────────────────────────────── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    padding: 130px 24px 110px;
+    text-align: center;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 55% 45% at 50% 55%, rgba(0,180,255,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 35% 35% at 15% 85%, rgba(0,255,213,0.03) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  #rainCanvas {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.28;
+  }
+
+  .hero-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(30,48,69,0.2) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,48,69,0.2) 1px, transparent 1px);
+    background-size: 56px 56px;
+    pointer-events: none;
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 20%, black 100%);
+  }
+
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.6rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    border: 1px solid rgba(0,255,213,0.2);
+    padding: 5px 16px;
+    border-radius: 2px;
+    margin-bottom: 40px;
+    position: relative;
+    z-index: 1;
+    animation: fadeInUp 0.7s ease both;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(3rem, 5.5vw, 4.8rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 1;
+    animation: fadeInUp 0.7s ease 0.1s both;
+  }
+
+  .hero-title .accent { color: var(--accent-blue); }
+  .hero-title .muted  { color: var(--text-muted); font-weight: 600; }
+
+  .hero-sub {
+    font-family: var(--font-display);
+    font-size: clamp(0.95rem, 1.8vw, 1.2rem);
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: -0.01em;
+    margin-bottom: 52px;
+    position: relative;
+    z-index: 1;
+    animation: fadeInUp 0.7s ease 0.15s both;
+  }
+
+  .hero-divider {
+    width: 36px;
+    height: 1px;
+    background: var(--border);
+    margin: 0 auto 52px;
+    position: relative;
+    z-index: 1;
+    animation: fadeInUp 0.7s ease 0.2s both;
+  }
+
+  .hero-story {
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    margin-bottom: 68px;
+    position: relative;
+    z-index: 1;
+    animation: fadeInUp 0.7s ease 0.25s both;
+  }
+
+  .story-point {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    text-align: left;
+  }
+
+  .story-icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    background: rgba(13,21,32,0.5);
+  }
+
+  .story-icon svg { width: 14px; height: 14px; }
+
+  .story-text p {
+    font-size: 0.74rem;
+    line-height: 1.8;
+    color: var(--text-muted);
+  }
+
+  .story-text strong {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .hero-stats-row {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 52px;
+    position: relative;
+    z-index: 1;
+    animation: fadeInUp 0.7s ease 0.35s both;
+  }
+
+  .hero-stat {
+    padding: 18px 32px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+    background: rgba(13,21,32,0.55);
+  }
+  .hero-stat:last-child { border-right: none; }
+
+  .hero-stat-val {
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 5px;
+  }
+
+  .hero-stat-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* DASHBOARD SECTION */
+  .dashboard-section {
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+  }
+
+  .dashboard-header {
+    padding: 28px 40px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .dashboard-header h2 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .dashboard-header p {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.05em;
+  }
+
+  /* MAIN LAYOUT */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: 80vh;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .sidebar-section {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* RAINFALL SELECTOR */
+  .rainfall-control {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .rainfall-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .rainfall-value {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent-blue);
+    line-height: 1;
+    transition: all 0.3s ease;
+  }
+
+  .rainfall-unit { font-size: 0.8rem; color: var(--text-muted); }
+
+  .rainfall-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .rain-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 8px 4px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+
+  .rain-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+  }
+
+  .rain-btn.active {
+    background: rgba(0, 180, 255, 0.12);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+  }
+
+  .rain-btn .mm { display: block; font-weight: 700; font-size: 0.9rem; }
+  .rain-btn .label { font-size: 0.58rem; color: inherit; opacity: 0.7; margin-top: 2px; }
+
+  /* RISK LEGEND */
+  .risk-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.72rem;
+  }
+
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-name { flex: 1; color: var(--text-primary); }
+  .legend-count {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    min-width: 24px;
+    text-align: right;
+  }
+
+  /* WARD SCORE */
+  .ward-score-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ward-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 8px 10px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+  }
+
+  .ward-item:hover {
+    background: var(--surface2);
+    border-color: var(--border);
+  }
+
+  .ward-name {
+    flex: 1;
+    font-size: 0.7rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ward-bar-wrap {
+    width: 70px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .ward-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  .ward-score-val {
+    font-size: 0.7rem;
+    font-weight: 700;
+    min-width: 26px;
+    text-align: right;
+  }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 10px;
+    text-align: center;
+  }
+
+  .stat-val {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* INFO PANEL */
+  .hotspot-detail {
+    padding: 16px 20px;
+    flex: 1;
+  }
+
+  .detail-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    text-align: center;
+    letter-spacing: 0.06em;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    gap: 8px;
+  }
+
+  .detail-card {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .detail-card.visible { display: flex; }
+
+  .detail-name {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  .detail-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 2px;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .detail-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .metric-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+
+  .metric-val {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+  }
+
+  .metric-label {
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .formula-box {
+    background: rgba(0, 180, 255, 0.05);
+    border: 1px solid rgba(0, 180, 255, 0.15);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 0.65rem;
+    line-height: 1.8;
+    color: var(--text-muted);
+  }
+
+  .formula-box .formula-val { color: var(--accent-cyan); font-weight: 700; }
+
+  /* MAP CONTAINER */
+  .map-container {
+    position: relative;
+    background: #060e18;
+  }
+
+  #map {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* MAP OVERLAY CONTROLS */
+  .map-top-bar {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    z-index: 800;
+    pointer-events: none;
+  }
+
+  .map-title-chip {
+    background: rgba(6,10,15,0.88);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 14px;
+    pointer-events: auto;
+    margin-left: 40px;
+  }
+
+  .map-title-chip h2 {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .map-title-chip p {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    margin-top: 1px;
+    letter-spacing: 0.05em;
+  }
+
+  .map-risk-summary {
+    background: rgba(6,10,15,0.88);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    pointer-events: auto;
+    display: flex;
+    gap: 12px;
+  }
+
+  .risk-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+  }
+
+  .risk-pill .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  .risk-pill .count { font-weight: 700; color: var(--text-primary); }
+
+  /* LOADING */
+  .loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    gap: 20px;
+    transition: opacity 0.5s ease;
+  }
+
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .loading-logo {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent-blue);
+  }
+
+  .loading-bar-wrap {
+    width: 200px;
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .loading-bar {
+    height: 100%;
+    background: var(--accent-blue);
+    animation: loadprog 1.2s ease forwards;
+  }
+
+  @keyframes loadprog {
+    from { width: 0%; }
+    to { width: 100%; }
+  }
+
+  .loading-status {
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  /* Leaflet popup custom */
+  .leaflet-popup-content-wrapper {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+    color: var(--text-primary) !important;
+    font-family: var(--font-mono) !important;
+  }
+
+  .leaflet-popup-tip { background: var(--surface) !important; }
+
+  .popup-inner { padding: 2px 0; }
+  .popup-name {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+  }
+  .popup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 10px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .popup-grid span { color: var(--text-primary); }
+  .popup-risk-bar {
+    height: 3px;
+    border-radius: 2px;
+    margin-top: 8px;
+  }
+  .popup-risk-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 5px;
+  }
+
+  /* Marker icon override */
+  .flood-marker {
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.25);
+    transition: transform 0.2s ease;
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .sidebar-section { animation: fadeInUp 0.4s ease both; }
+  .sidebar-section:nth-child(1) { animation-delay: 0.1s; }
+  .sidebar-section:nth-child(2) { animation-delay: 0.2s; }
+  .sidebar-section:nth-child(3) { animation-delay: 0.3s; }
+  .sidebar-section:nth-child(4) { animation-delay: 0.4s; }
+
+  /* Scrollbar for sidebar */
+  .ward-score-grid { max-height: 220px; overflow-y: auto; }
+  .ward-score-grid::-webkit-scrollbar { width: 3px; }
+  .ward-score-grid::-webkit-scrollbar-thumb { background: var(--border); }
+
+
+  .hero-cta { display: inline-flex; align-items: center; gap: 10px; background: var(--accent-blue); color: #060a0f; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 15px 36px; border: none; border-radius: 3px; cursor: pointer; position: relative; z-index: 1; animation: fadeInUp 0.7s ease 0.45s both; transition: all 0.2s ease; }
+  .hero-cta:hover { background: var(--accent-cyan); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,180,255,0.22); }
+
+  .hero-scroll-hint { position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-muted); font-size: 0.55rem; letter-spacing: 0.14em; text-transform: uppercase; animation: fadeInUp 0.7s ease 0.7s both; z-index: 1; }
+  .scroll-line { width: 1px; height: 36px; background: linear-gradient(to bottom, transparent, var(--border), transparent); animation: scrollDrop 2s ease-in-out infinite; }
+  @keyframes scrollDrop { 0% { opacity:0; transform: translateY(-6px); } 40% { opacity:1; transform: translateY(0); } 100% { opacity:0; transform: translateY(8px); } }
+
+
+  /* ── LOCATION FINDER ─────────────────────────────── */
+  .location-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .loc-input-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .loc-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    padding: 8px 11px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .loc-input::placeholder { color: var(--text-muted); }
+  .loc-input:focus { border-color: var(--accent-blue); }
+
+  .loc-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 10px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .loc-btn:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+  .loc-btn svg { width: 14px; height: 14px; }
+
+  .loc-search-btn {
+    background: var(--accent-blue);
+    border: none;
+    border-radius: 3px;
+    color: #060a0f;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 8px 14px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .loc-search-btn:hover { background: var(--accent-cyan); }
+
+  .loc-result {
+    display: none;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .loc-result.visible { display: block; }
+
+  .loc-result-header {
+    padding: 10px 12px 8px;
+    background: var(--surface2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .loc-result-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .loc-result-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+  }
+
+  .loc-result-body {
+    padding: 10px 12px;
+    background: rgba(13,21,32,0.4);
+  }
+
+  .loc-result-dist {
+    font-size: 0.66rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .loc-metrics-mini {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+
+  .loc-metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px 4px;
+    text-align: center;
+  }
+
+  .loc-metric-val {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent-blue);
+    line-height: 1;
+  }
+
+  .loc-metric-label {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .loc-advice {
+    font-size: 0.66rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    padding: 8px 10px;
+    border-radius: 3px;
+    border-left: 2px solid var(--border);
+  }
+
+  .loc-none {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 3px;
+    line-height: 1.6;
+    display: none;
+  }
+  .loc-none.visible { display: block; }
+
+  .loc-loading {
+    font-size: 0.66rem;
+    color: var(--accent-blue);
+    padding: 8px 0 2px;
+    display: none;
+    letter-spacing: 0.04em;
+  }
+  .loc-loading.visible { display: block; }
+
+
+  /* ── ACTION REQUIRED CARD ───────────────────────── */
+  .action-section {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .action-card {
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255,45,85,0.3);
+    background: rgba(255,45,85,0.06);
+    display: none;
+  }
+  .action-card.visible { display: block; }
+
+  .action-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid rgba(255,45,85,0.2);
+  }
+
+  .action-header svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .action-title {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--risk-critical);
+  }
+
+  .action-body {
+    padding: 10px 12px 12px;
+  }
+
+  .action-msg {
+    font-size: 0.72rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+    margin-bottom: 10px;
+  }
+
+  .action-msg strong { color: var(--risk-critical); }
+
+  .broadcast-btn {
+    width: 100%;
+    background: var(--risk-critical);
+    border: none;
+    border-radius: 3px;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 10px 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+  .broadcast-btn:hover { background: #e0003e; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,45,85,0.3); }
+  .broadcast-btn svg { width: 14px; height: 14px; }
+
+  .action-calm {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 8px 4px 2px;
+    display: none;
+  }
+  .action-calm.visible { display: block; }
+
+  /* population stat spans full width */
+  .stat-card.full {
+    grid-column: 1 / -1;
+    background: rgba(0,180,255,0.05);
+    border-color: rgba(0,180,255,0.2);
+  }
+
+  .stat-card.full .stat-val { font-size: 1.3rem; }
+  .stat-sublabel {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.06em;
+  }
+
+
+  /* ── PREDICT MODE ───────────────────────────────── */
+  .predict-btn {
+    width: 100%;
+    margin-top: 8px;
+    background: transparent;
+    border: 1px solid var(--accent-cyan);
+    color: var(--accent-cyan);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 9px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+  }
+  .predict-btn:hover,
+  .predict-btn.active {
+    background: rgba(0,255,213,0.1);
+    box-shadow: 0 0 0 1px var(--accent-cyan);
+  }
+  .predict-btn.active {
+    background: rgba(0,255,213,0.12);
+    color: var(--accent-cyan);
+  }
+
+  .predict-info {
+    display: none;
+    margin-top: 7px;
+    font-size: 0.62rem;
+    color: var(--accent-cyan);
+    line-height: 1.6;
+    padding: 7px 10px;
+    background: rgba(0,255,213,0.05);
+    border: 1px solid rgba(0,255,213,0.15);
+    border-radius: 3px;
+  }
+  .predict-info.visible { display: block; }
+
+  .mode-pill {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+    background: rgba(0,255,213,0.12);
+    border: 1px solid rgba(0,255,213,0.3);
+    color: var(--accent-cyan);
+    pointer-events: none;
+    z-index: 810;
+  }
+  .mode-pill.visible { display: block; }
+
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-logo">HydroSense</div>
+  <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
+  <div class="loading-status">Initializing flood engine...</div>
+</div>
+
+<header>
+  <div class="logo-group">
+    <div class="logo-icon">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="19" stroke="#1e3045" stroke-width="1.5"/>
+        <path d="M8 26 C12 20 16 28 20 22 C24 16 28 24 32 18" stroke="#00b4ff" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path d="M8 30 C12 24 16 32 20 26 C24 20 28 28 32 22" stroke="#00ffd5" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.5"/>
+        <circle cx="20" cy="14" r="4" fill="rgba(0,180,255,0.15)" stroke="#00b4ff" stroke-width="1.2"/>
+        <path d="M20 10 L20 8 M20 20 L20 22 M14 14 L12 14 M26 14 L28 14" stroke="#00b4ff" stroke-width="1" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      <h1>HydroSense Delhi</h1>
+      <span>Urban Flood Risk Engine v1.0</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge">
+      <div class="pulse-dot"></div>
+      Live Simulation
+    </div>
+    <div class="season-tag">PRE-MONSOON 2025</div>
+  </div>
+</header>
+
+<section class="hero" id="heroSection">
+  <div class="hero-bg"></div>
+  <canvas id="rainCanvas"></canvas>
+  <div class="hero-grid"></div>
+
+  <div class="hero-eyebrow">
+    <div class="pulse-dot"></div>
+    Smart City Infrastructure &nbsp;·&nbsp; Delhi NCT &nbsp;·&nbsp; Pre-Monsoon 2025
+  </div>
+
+  <h2 class="hero-title">
+    Delhi floods.<br>
+    <span class="accent">We see it</span> <span class="muted">coming.</span>
+  </h2>
+
+  <p class="hero-sub">
+    A GIS-based flood risk engine for urban India.
+  </p>
+
+  <div class="hero-divider"></div>
+
+  <div class="hero-story">
+    <div class="story-point">
+      <div class="story-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--risk-critical)" stroke-width="1.8"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      </div>
+      <div class="story-text">
+        <p><strong>Every monsoon, large parts of Delhi go underwater.</strong> Low-lying wards, clogged drains, and rising rainfall events leave millions vulnerable — yet most interventions happen only after the damage is done.</p>
+      </div>
+    </div>
+
+    <div class="story-point">
+      <div class="story-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      </div>
+      <div class="story-text">
+        <p><strong>HydroSense predicts risk before it rains.</strong> By combining terrain elevation, drainage capacity proxies, and rainfall intensity into a weighted score, we identify the exact localities most likely to flood — ward by ward.</p>
+      </div>
+    </div>
+
+    <div class="story-point">
+      <div class="story-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="1.8"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 16l4.553-2.276A1 1 0 0021 19.764V8.382a1 1 0 00-1.447-.894L15 10m0 13V10M9 7l6-3"/></svg>
+      </div>
+      <div class="story-text">
+        <p><strong>Actionable, visual, and scalable.</strong> Results are plotted live on an interactive map — so civic authorities can prioritise drainage repair, pre-position pumps, and issue ward-level alerts days in advance.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-stats-row">
+    <div class="hero-stat">
+      <div class="hero-stat-val" style="color:var(--accent-blue)">32</div>
+      <div class="hero-stat-label">Localities</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val" style="color:var(--accent-cyan)">3</div>
+      <div class="hero-stat-label">Risk Features</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val" style="color:var(--risk-moderate)">4</div>
+      <div class="hero-stat-label">Risk Tiers</div>
+    </div>
+    <div class="hero-stat">
+      <div class="hero-stat-val" style="color:var(--risk-critical)">Live</div>
+      <div class="hero-stat-label">Simulation</div>
+    </div>
+  </div>
+
+  <button class="hero-cta" onclick="document.getElementById('dashboardSection').scrollIntoView({behavior:'smooth'})">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:15px;height:15px"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 16l4.553-2.276A1 1 0 0021 19.764V8.382a1 1 0 00-1.447-.894L15 10m0 13V10M9 7l6-3"/></svg>
+    Launch Flood Engine
+  </button>
+
+  <div class="hero-scroll-hint">
+    <div class="scroll-line"></div>
+    scroll to dashboard
+  </div>
+</section>
+
+<div class="dashboard-section" id="dashboardSection">
+  <div class="dashboard-header">
+    <div>
+      <h2>Delhi Flood Risk Dashboard</h2>
+      <p>32 micro-localities · Feature-weighted scoring · Interactive rainfall simulation</p>
+    </div>
+    <div class="live-badge" style="font-size:0.65rem;letter-spacing:0.1em;color:var(--accent-cyan);text-transform:uppercase;display:flex;align-items:center;gap:6px;">
+      <div class="pulse-dot"></div>
+      Live Simulation Active
+    </div>
+  </div>
+
+<div class="app-layout">
+
+  <div class="sidebar">
+
+    <div class="location-section">
+      <div class="section-label">Your Location</div>
+      <div class="loc-input-row">
+        <input class="loc-input" id="locInput" type="text" placeholder="Enter area name e.g. Shahdara" />
+        <button class="loc-btn" title="Use current location" onclick="useCurrentLocation()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        </button>
+        <button class="loc-search-btn" onclick="searchLocation()">Check</button>
+      </div>
+      <div class="loc-loading" id="locLoading">⟳ Detecting location…</div>
+      <div class="loc-result" id="locResult"></div>
+      <div class="loc-none" id="locNone"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Rainfall Simulation</div>
+      <div class="rainfall-control">
+        <div class="rainfall-label-row">
+          <div>
+            <div class="rainfall-value" id="rainfallDisplay">120</div>
+          </div>
+          <div class="rainfall-unit" id="rainfallUnit">mm / event</div>
+        </div>
+        <div class="rainfall-buttons">
+          <button class="rain-btn" onclick="setRainfall(50)" data-val="50">
+            <span class="mm">50mm</span>
+            <span class="label">Low</span>
+          </button>
+          <button class="rain-btn active" onclick="setRainfall(120)" data-val="120">
+            <span class="mm">120mm</span>
+            <span class="label">Moderate</span>
+          </button>
+          <button class="rain-btn" onclick="setRainfall(200)" data-val="200">
+            <span class="mm">200mm</span>
+            <span class="label">Extreme</span>
+          </button>
+        </div>
+        <button class="predict-btn" id="predictBtn" onclick="togglePredictMode()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+          Predict Rainfall
+        </button>
+        <div class="predict-info" id="predictInfo">
+          Using actual rainfall from each grid cell in CSV. Map shows 50 cells with per-cell rainfall values.
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">City Overview</div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-val" id="statTotal" style="color: var(--accent-blue)">0</div>
+          <div class="stat-label">Hotspots</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statCritical" style="color: var(--risk-critical)">0</div>
+          <div class="stat-label">Critical</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="statHigh" style="color: var(--risk-high)">0</div>
+          <div class="stat-label">High Risk</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="readinessScore" style="color: var(--accent-cyan)">--</div>
+          <div class="stat-label">Readiness</div>
+        </div>
+        <div class="stat-card full">
+          <div class="stat-val" id="statPopAtRisk" style="color: var(--accent-blue)">--</div>
+          <div class="stat-label">Est. Population at Risk</div>
+          <div class="stat-sublabel">In Critical &amp; High zones</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="action-section">
+      <div class="section-label">Alert Status</div>
+      <div class="action-card" id="actionCard">
+        <div class="action-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--risk-critical)" stroke-width="2.2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="action-title">Action Required</span>
+        </div>
+        <div class="action-body">
+          <div class="action-msg" id="actionMsg">—</div>
+          <button class="broadcast-btn" onclick="triggerBroadcast()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.13 1.08.36 2.13.71 3.13a2 2 0 01-.45 2.11L6.91 9.32a16 16 0 006.29 6.29l1.36-.8a2 2 0 012.11-.45c1 .35 2.05.58 3.13.71A2 2 0 0122 16.92z"/></svg>
+            Broadcast Evacuation Alert
+          </button>
+        </div>
+      </div>
+      <div class="action-calm" id="actionCalm">
+        ✓ No critical threshold exceeded. System on standby.
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Risk Classification</div>
+      <div class="risk-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--risk-critical)"></div>
+          <span class="legend-name">Critical (&gt;75)</span>
+          <span class="legend-count" id="lc-critical">0</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--risk-high)"></div>
+          <span class="legend-name">High (50–75)</span>
+          <span class="legend-count" id="lc-high">0</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--risk-moderate)"></div>
+          <span class="legend-name">Moderate (25–50)</span>
+          <span class="legend-count" id="lc-moderate">0</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: var(--risk-low)"></div>
+          <span class="legend-name">Low (&lt;25)</span>
+          <span class="legend-count" id="lc-low">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-label">Ward Readiness Scores</div>
+      <div class="ward-score-grid" id="wardScoreList">
+        </div>
+    </div>
+
+    <div class="hotspot-detail">
+      <div class="section-label" style="margin-bottom:10px">Selected Hotspot</div>
+      <div class="detail-placeholder" id="detailPlaceholder">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/></svg>
+        Click a marker to inspect
+      </div>
+      <div class="detail-card" id="detailCard">
+        <div>
+          <div class="detail-name" id="dName">—</div>
+          <div class="detail-badge" id="dBadge">—</div>
+        </div>
+        <div class="detail-metrics">
+          <div class="metric-box">
+            <div class="metric-val" id="dRainfall">—</div>
+            <div class="metric-label">Rainfall mm</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val" id="dElev">—</div>
+            <div class="metric-label">Elevation m</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val" id="dDrain">—</div>
+            <div class="metric-label">Drainage</div>
+          </div>
+        </div>
+        <div class="formula-box" id="dFormula">—</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="map-container">
+    <div id="map"></div>
+    <div class="mode-pill" id="modePill">⚡ Predict Mode — CSV Rainfall</div>
+
+    <div class="map-top-bar">
+      <div class="map-title-chip">
+        <h2>Delhi NCT — Flood Risk Heatmap</h2>
+        <p id="mapSubtitle">50 CSV grid cells · OpenStreetMap base · Feature-weighted scoring</p>
+      </div>
+      <div class="map-risk-summary" id="mapSummaryPills"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ======================================================
+// CSV DATA (embedded from yamuna_grid_readiness_scores.csv)
+// ======================================================
+const CSV_RAW = `cell_id,row,col,lat,lon,elevation_m,drainage_poorness,rainfall_mm,rain_norm,elev_norm,elev_component,drain_component,rain_component,readiness_score,risk_class
+1,0,0,28.5595,77.232,218.99342830602245,0.2324083969394795,93.38517031798344,0.07942322064947663,0.8950084216880816,0.10499157831191841,0.2324083969394795,0.07942322064947663,12.661843990383199,Low
+2,0,1,28.5595,77.241,214.72347139765762,0.6614917719583683,133.17418708938564,0.3155182260462331,0.6636669525261452,0.33633304747385484,0.6614917719583683,0.3155182260462331,40.929680002393454,Medium
+3,0,2,28.5595,77.25,211.7953770762014,0.2323077999694041,136.29141933892922,0.3340148621658744,0.5050260911058806,0.4949739088941194,0.2323077999694041,0.3340148621658744,36.492376297164256,Medium
+4,0,3,28.5595,77.259,210.54605971281606,0.8611676288840868,117.90890923113524,0.22493906247873874,0.4373394796253544,0.5626605203746455,0.8611676288840868,0.22493906247873874,50.21987143436431,Medium
+5,0,4,28.5595,77.268,205.53169325055333,0.5030999522495951,143.54857153335962,0.37707642853613454,0.16566673697455533,0.8343332630254446,0.5030999522495951,0.37707642853613454,56.86222015357583,Medium
+6,1,0,28.5685,77.232,217.53172608610163,0.29312801191161986,166.16203427258154,0.5112573166472785,0.8158150372369861,0.18418496276301388,0.29312801191161986,0.5112573166472785,34.224966660387125,Medium
+7,1,1,28.5685,77.241,218.15842563101478,0.6160782476777361,225.4474360484212,0.8630374908755564,0.8497689146541813,0.15023108534581875,0.6160782476777361,0.8630374908755564,55.181543814069315,Medium
+8,1,2,28.5685,77.25,212.03486945830582,0.26907876241487855,156.98311251327357,0.4567925985379888,0.5180015193638551,0.4819984806361449,0.26907876241487855,0.4567925985379888,41.86861982415659,Medium
+9,1,3,28.5685,77.259,206.56105122813008,0.8331263431403564,160.30201562891057,0.4764858835844495,0.22143619599641642,0.7785638040035836,0.8331263431403564,0.4764858835844495,67.13732706201232,Medium
+10,1,4,28.5685,77.268,207.08512008717193,0.49755451271223594,147.0221633693533,0.39768758583053876,0.249829658130719,0.750170341869281,0.49755451271223594,0.39768758583053876,54.60232821645228,Medium
+11,2,0,28.5775,77.232,217.0731646143751,0.152082576215471,80.0,0.0,0.7909706917677242,0.20902930823227583,0.152082576215471,0.0,11.11809019351643,Low
+12,2,1,28.5775,77.241,214.06854049285948,0.6814341023336182,148.93944498203132,0.40906410752980477,0.628183531740623,0.371816468259377,0.6814341023336182,0.40906410752980477,46.41199324861084,Medium
+13,2,2,28.5775,77.25,210.98392454313208,0.18936650259939716,152.40920839764107,0.4296525482304213,0.46106250431003215,0.5389374956899678,0.18936650259939716,0.4296525482304213,40.783076843350656,Medium
+14,2,3,28.5775,77.259,203.6734395106844,0.6803793375919329,248.52968449941145,1.0,0.0649886365902669,0.9350113634097331,0.6803793375919329,1.0,89.73488115913898,High
+15,2,4,28.5775,77.268,202.55016433497394,0.4812525822394198,142.3055614087551,0.3697008132058343,0.004130849263906529,0.9958691507360935,0.4812525822394198,0.3697008132058343,61.67476735998214,Medium
+16,3,0,28.5865,77.232,216.87542494151805,0.33562400285708227,162.0618936933445,0.48692842413545895,0.7802573783989796,0.21974262160102043,0.33562400285708227,0.48692842413545895,35.55872879288113,Medium
+17,3,1,28.5865,77.241,212.97433775933115,0.6927989878419666,148.61152921179027,0.4071183626527817,0.568900856676722,0.43109914332327803,0.6927989878419666,0.4071183626527817,48.693179218475166,Medium
+18,3,2,28.5865,77.25,211.12849466519054,0.4003532897892024,103.25287849521871,0.13797497197177697,0.46889515113801483,0.5311048488619852,0.4003532897892024,0.13797497197177697,34.116500833770615,Medium
+19,3,3,28.5865,77.259,205.68395184895758,0.8361636025047634,195.71291258060083,0.6866025586193092,0.1739159368150437,0.8260840631849563,0.8361636025047634,0.6866025586193092,77.28113461886493,High
+20,3,4,28.5865,77.268,203.17539259732942,0.33548802453948756,180.07732130747098,0.5938260764252512,0.03800501424471209,0.9619949857552879,0.33548802453948756,0.5938260764252512,65.81006817193231,Medium
+21,4,0,28.5955,77.232,220.9312975378431,0.2361395605508414,181.64127788172186,0.6031060829647303,1.0,0.0,0.2361395605508414,0.6031060829647303,30.027732332360245,Medium
+22,4,1,28.5955,77.241,214.54844739902694,0.8538036566465969,113.62450180821044,0.1995167908139522,0.6541843488721136,0.34581565112788637,0.8538036566465969,0.1995167908139522,41.42931083819903,Medium
+23,4,2,28.5955,77.25,210.63505640937584,0.29641739608900486,206.11177243744396,0.7483059902001085,0.4421612206814209,0.5578387793185791,0.29641739608900486,0.7483059902001085,56.86703178637973,Medium
+24,4,3,28.5955,77.259,204.65050362757307,0.9564643655814007,93.92595748830877,0.08263207475688,0.11792487297795315,0.8820751270220468,0.9564643655814007,0.08263207475688,58.08952157558185,Medium
+25,4,4,28.5955,77.268,204.91123455094964,0.13802548959102556,173.47428375201082,0.5546458122772862,0.13205098154633743,0.8679490184536626,0.13802548959102556,0.5546458122772862,56.01468537674528,Medium
+26,5,0,28.6045,77.232,218.22184517941974,0.2821902504375224,237.61822503239915,0.9352549700699736,0.8532049145521778,0.14679508544782216,0.2821902504375224,0.9352549700699736,49.60278305441078,Medium
+27,5,1,28.6045,77.241,212.6980128451554,0.708704706823817,110.37854699477246,0.18025635712193216,0.5539298832024386,0.44607011679756137,0.708704706823817,0.18025635712193216,40.54032604338736,Medium
+28,5,2,28.6045,77.25,211.25139603669135,0.27009926495341324,127.34809081588912,0.2809480772276321,0.4755538093997209,0.5244461906002791,0.27009926495341324,0.2809480772276321,36.34602138395039,Medium
+29,5,3,28.6045,77.259,206.29872262016238,0.8091760776535503,153.98605460350564,0.43900903762603327,0.20722352667144794,0.7927764733285521,0.8091760776535503,0.43900903762603327,65.53694001287941,Medium
+30,5,4,28.6045,77.268,205.41661250041344,0.20124310853991073,129.86097383535204,0.29585870277663856,0.1594317911938457,0.8405682088061543,0.20124310853991073,0.29585870277663856,46.285313132778704,Medium
+31,6,0,28.613500000000002,77.232,216.79658677554121,0.1780328112162488,87.9734627573547,0.047311918852981305,0.7759860151195553,0.22401398488044466,0.1780328112162488,0.047311918852981305,14.183786505341034,Low
+32,6,1,28.613500000000002,77.241,218.70455636901787,0.7357112571511746,152.7425189922411,0.431630304229847,0.8793576646100933,0.12064233538990665,0.7357112571511746,0.431630304229847,39.88047533661998,Medium
+33,6,2,28.613500000000002,77.25,210.47300555052414,0.4477894044741516,107.5078514509558,0.16322258914008625,0.43338148716882624,0.5666185128311738,0.4477894044741516,0.16322258914008625,37.55528662654832,Medium
+34,6,3,28.613500000000002,77.259,205.3845781420882,0.7481729781726353,168.94369722540728,0.5277627943682401,0.15769620564165862,0.8423037943583414,0.7481729781726353,0.5277627943682401,69.29546903158743,Medium
+35,6,4,28.613500000000002,77.268,207.64508982420637,0.31915063971068125,113.22303063064788,0.19713459221935414,0.28016818950980454,0.7198318104901955,0.31915063971068125,0.19713459221935414,41.05826304869804,Medium
+36,7,0,28.622500000000002,77.232,215.55831270005797,0.14982429564154637,211.99737620070158,0.7832292369903686,0.7088977165734388,0.2911022834265612,0.14982429564154637,0.7832292369903686,45.263356790583046,Medium
+37,7,1,28.622500000000002,77.241,215.41772719000951,0.7915402117702074,118.66986830655051,0.22945434462428818,0.7012809515485328,0.29871904845146724,0.7915402117702074,0.22945434462428818,39.42184577502806,Medium
+38,7,2,28.622500000000002,77.25,206.58065975224045,0.33287511096596845,137.11753935177296,0.33891678799156855,0.22249856380788147,0.7775014361921185,0.33287511096596845,0.33891678799156855,49.0910995605361,Medium
+39,7,3,28.622500000000002,77.259,204.84362790220314,0.7470239796232961,182.54068869478678,0.6084428924160532,0.12838812925490276,0.8716118707450973,0.7470239796232961,0.6084428924160532,73.51973066330294,High
+40,7,4,28.622500000000002,77.268,206.39372247173824,0.45132674331133565,100.7654273426418,0.12321525079882481,0.21237051192337697,0.787629488076623,0.45132674331133565,0.12321525079882481,43.77881069741819,Medium
+41,8,0,28.631500000000003,77.232,219.47693315999084,0.20970775493480404,159.09839738416517,0.4693440067790633,0.9212041715901123,0.07879582840988775,0.20970775493480404,0.4693440067790633,26.774308138878705,Low
+42,8,1,28.631500000000003,77.241,215.34273656237994,0.7968644990532889,202.28571017129713,0.7256033887117624,0.697218043575102,0.302781956424898,0.7968644990532889,0.7256033887117624,59.54311649967414,Medium
+43,8,2,28.631500000000003,77.25,210.26870343522353,0.22979469061226476,85.7006706175509,0.033825914019146024,0.4223126280396054,0.5776873719603945,0.22979469061226476,0.033825914019146024,27.316961844686272,Low
+44,8,3,28.631500000000003,77.259,206.89779260882142,0.7672337853402232,157.38535434129216,0.45917936992021374,0.23968046576507435,0.7603195342349256,0.7672337853402232,0.45917936992021374,64.15920312853652,Medium
+45,8,4,28.631500000000003,77.268,203.04295601926515,0.3607891846867842,160.39531176993694,0.47703947235608635,0.030829749201603966,0.969170250798396,0.3607891846867842,0.47703947235608635,62.022267289356925,Medium
+46,9,0,28.640500000000003,77.232,216.5603115832106,0.053648505186788153,181.2729148710924,0.600920337398757,0.7631848905898895,0.23681510941011052,0.053648505186788153,0.600920337398757,33.666554954973854,Medium
+47,9,1,28.640500000000003,77.241,214.07872245808042,0.7296120277064576,100.52197156487672,0.12177066387938554,0.6287351791796294,0.3712648208203706,0.7296120277064576,0.12177066387938554,36.105395976549836,Medium
+48,9,2,28.640500000000003,77.25,212.61424445243784,0.3261055272179889,97.18173547662894,0.10195079595422223,0.5493914057759685,0.45060859422403154,0.3261055272179889,0.10195079595422223,28.001970816459714,Low
+49,9,3,28.640500000000003,77.259,208.18723657913694,0.8005113456642461,170.8776626246759,0.5392383121977142,0.30954109173776734,0.6904589082622327,0.8005113456642461,0.5392383121977142,65.74837791869285,Medium
+50,9,4,28.640500000000003,77.268,202.47391968927454,0.3765412866624853,161.87938692932744,0.4858454887193086,0.0,1.0,0.3765412866624853,0.4858454887193086,63.847351715334476,Medium`;
+
+function parseCSV(raw) {
+  const lines = raw.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',');
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = vals[i]?.trim(); });
+    return {
+      cell_id:         parseInt(obj.cell_id),
+      row:             parseInt(obj.row),
+      col:             parseInt(obj.col),
+      lat:             parseFloat(obj.lat),
+      lng:             parseFloat(obj.lon),
+      elevation_m:     parseFloat(obj.elevation_m),
+      drainage_poorness: parseFloat(obj.drainage_poorness),
+      rainfall_mm:     parseFloat(obj.rainfall_mm),
+      rain_norm:       parseFloat(obj.rain_norm),
+      elev_norm:       parseFloat(obj.elev_norm),
+      readiness_score: parseFloat(obj.readiness_score),
+      risk_class:      obj.risk_class
+    };
+  });
+}
+
+const csvCells = parseCSV(CSV_RAW); // 50 grid cells from CSV
+
+// ======================================================
+// DATASET — Delhi localities with hydro-features
+// ======================================================
+const localities = [
+  // Central Delhi
+  { name: "Connaught Place",  lat: 28.6315, lng: 77.2167, elevation: 214, drainage: 72, ward: "Central", population: 85000,  infra: "Commercial Hub" },
+  { name: "Paharganj",        lat: 28.6432, lng: 77.2129, elevation: 211, drainage: 42, ward: "Central", population: 220000, infra: "Dense Congestion" },
+  { name: "Karol Bagh",       lat: 28.6519, lng: 77.1906, elevation: 209, drainage: 55, ward: "Central", population: 310000, infra: "Mixed Urban" },
+  { name: "Daryaganj",        lat: 28.6402, lng: 77.2446, elevation: 210, drainage: 40, ward: "Central", population: 195000, infra: "Dense Congestion" },
+  // North Delhi
+  { name: "Civil Lines",      lat: 28.6832, lng: 77.2230, elevation: 218, drainage: 68, ward: "North",   population: 120000, infra: "Planned Area" },
+  { name: "Model Town",       lat: 28.7200, lng: 77.1900, elevation: 216, drainage: 63, ward: "North",   population: 280000, infra: "Planned Area" },
+  { name: "Mukherjee Nagar",  lat: 28.7030, lng: 77.2080, elevation: 215, drainage: 50, ward: "North",   population: 340000, infra: "Mixed Urban" },
+  { name: "Wazirabad",        lat: 28.7380, lng: 77.2490, elevation: 212, drainage: 35, ward: "North",   population: 175000, infra: "Low Infra" },
+  // East Delhi
+  { name: "Preet Vihar",      lat: 28.6420, lng: 77.2980, elevation: 208, drainage: 58, ward: "East",    population: 290000, infra: "Mixed Urban" },
+  { name: "Shahdara",         lat: 28.6700, lng: 77.2900, elevation: 205, drainage: 38, ward: "East",    population: 480000, infra: "Dense Congestion" },
+  { name: "Geeta Colony",     lat: 28.6576, lng: 77.2771, elevation: 206, drainage: 41, ward: "East",    population: 260000, infra: "Dense Congestion" },
+  { name: "Yamuna Vihar",     lat: 28.6890, lng: 77.2830, elevation: 203, drainage: 30, ward: "East",    population: 390000, infra: "Low Infra" },
+  // West Delhi
+  { name: "Rajouri Garden",   lat: 28.6481, lng: 77.1219, elevation: 217, drainage: 65, ward: "West",    population: 320000, infra: "Planned Area" },
+  { name: "Uttam Nagar",      lat: 28.6195, lng: 77.0588, elevation: 215, drainage: 48, ward: "West",    population: 510000, infra: "Dense Congestion" },
+  { name: "Tilak Nagar",      lat: 28.6369, lng: 77.1039, elevation: 213, drainage: 52, ward: "West",    population: 300000, infra: "Mixed Urban" },
+  { name: "Vikaspuri",        lat: 28.6390, lng: 77.0720, elevation: 214, drainage: 54, ward: "West",    population: 340000, infra: "Mixed Urban" },
+  // South Delhi
+  { name: "Hauz Khas",        lat: 28.5494, lng: 77.2001, elevation: 220, drainage: 78, ward: "South",   population: 95000,  infra: "Planned Area" },
+  { name: "Saket",            lat: 28.5245, lng: 77.2066, elevation: 218, drainage: 74, ward: "South",   population: 110000, infra: "Planned Area" },
+  { name: "Vasant Kunj",      lat: 28.5208, lng: 77.1567, elevation: 216, drainage: 70, ward: "South",   population: 130000, infra: "Planned Area" },
+  { name: "Mehrauli",         lat: 28.5186, lng: 77.1816, elevation: 213, drainage: 45, ward: "South",   population: 245000, infra: "Mixed Urban" },
+  // South-West Delhi
+  { name: "Dwarka Sector 10", lat: 28.5921, lng: 77.0460, elevation: 212, drainage: 62, ward: "SW",      population: 180000, infra: "Planned Area" },
+  { name: "Dwarka Sector 23", lat: 28.5731, lng: 77.0170, elevation: 210, drainage: 58, ward: "SW",      population: 210000, infra: "Planned Area" },
+  { name: "Palam",            lat: 28.5915, lng: 77.0725, elevation: 208, drainage: 43, ward: "SW",      population: 290000, infra: "Mixed Urban" },
+  // Low-lying flood-prone zones
+  { name: "Burari",           lat: 28.7520, lng: 77.2040, elevation: 200, drainage: 28, ward: "North",   population: 420000, infra: "Low Infra" },
+  { name: "Usmanpur",         lat: 28.6970, lng: 77.2580, elevation: 201, drainage: 25, ward: "North",   population: 310000, infra: "Low Infra" },
+  { name: "Mustafabad",       lat: 28.7100, lng: 77.3020, elevation: 199, drainage: 22, ward: "NE",      population: 380000, infra: "Low Infra" },
+  { name: "Seelampur",        lat: 28.6640, lng: 77.2790, elevation: 202, drainage: 24, ward: "NE",      population: 350000, infra: "Dense Congestion" },
+  { name: "Babarpur",         lat: 28.6890, lng: 77.3090, elevation: 200, drainage: 27, ward: "NE",      population: 295000, infra: "Low Infra" },
+  { name: "Kalyanpuri",       lat: 28.6150, lng: 77.3120, elevation: 204, drainage: 32, ward: "East",    population: 325000, infra: "Dense Congestion" },
+  { name: "Trilokpuri",       lat: 28.6276, lng: 77.2987, elevation: 203, drainage: 30, ward: "East",    population: 360000, infra: "Dense Congestion" },
+  { name: "Khichripur",       lat: 28.6108, lng: 77.3180, elevation: 202, drainage: 28, ward: "East",    population: 270000, infra: "Low Infra" },
+  { name: "Sarita Vihar",     lat: 28.5491, lng: 77.2843, elevation: 207, drainage: 60, ward: "SE",      population: 145000, infra: "Planned Area" },
+];
+
+let currentRainfall = 120;
+let map;
+let markers = [];
+
+// ======================================================
+// RISK ENGINE
+// ======================================================
+function computeRisk(loc, rainfall) {
+  const rainfallRisk = (rainfall / 200) * 100;
+  const elevationRisk = ((220 - loc.elevation) / 20) * 100;
+  const drainageRisk = 100 - loc.drainage;
+  const score = 0.5 * rainfallRisk + 0.3 * elevationRisk + 0.2 * drainageRisk;
+  return {
+    score: Math.min(100, Math.round(score * 10) / 10),
+    rainfallRisk: Math.round(rainfallRisk),
+    elevationRisk: Math.round(elevationRisk),
+    drainageRisk: Math.round(drainageRisk)
+  };
+}
+
+function getRiskCategory(score) {
+  if (score >= 75) return { label: "Critical", color: "#ff2d55", bg: "rgba(255,45,85,0.15)" };
+  if (score >= 50) return { label: "High",     color: "#ff6b2b", bg: "rgba(255,107,43,0.15)" };
+  if (score >= 25) return { label: "Moderate", color: "#ffc300", bg: "rgba(255,195,0,0.15)" };
+  return              { label: "Low",      color: "#00e676", bg: "rgba(0,230,118,0.12)" };
+}
+
+function markerRadius(score) {
+  if (score >= 75) return 18;
+  if (score >= 50) return 14;
+  if (score >= 25) return 10;
+  return 7;
+}
+
+// ======================================================
+// MAP INIT
+// ======================================================
+function initMap() {
+  map = L.map('map', {
+    center: [28.6400, 77.2200],
+    zoom: 11,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  // Dark tile
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    maxZoom: 19
+  }).addTo(map);
+
+  L.control.attribution({ position: 'bottomright', prefix: false })
+    .addAttribution('© OpenStreetMap contributors © CARTO')
+    .addTo(map);
+
+  renderMarkers();
+}
+
+// ======================================================
+// MODE STATE
+// ======================================================
+let predictMode = false;
+
+function togglePredictMode() {
+  predictMode = !predictMode;
+  const btn  = document.getElementById('predictBtn');
+  const info = document.getElementById('predictInfo');
+  const pill = document.getElementById('modePill');
+  const sub  = document.getElementById('mapSubtitle');
+
+  if (predictMode) {
+    btn.classList.add('active');
+    info.classList.add('visible');
+    pill.classList.add('visible');
+    sub.textContent = '50 CSV grid cells · Per-cell CSV rainfall · Predict mode';
+    document.getElementById('rainfallDisplay').textContent = 'Predicted';
+    document.getElementById('rainfallUnit').textContent = 'per-cell data';
+    document.querySelectorAll('.rain-btn').forEach(b => b.disabled = true);
+  } else {
+    btn.classList.remove('active');
+    info.classList.remove('visible');
+    pill.classList.remove('visible');
+    sub.textContent = '50 CSV grid cells · OpenStreetMap base · Manual rainfall';
+    document.getElementById('rainfallDisplay').textContent = currentRainfall;
+    document.getElementById('rainfallUnit').textContent = 'mm / event';
+    document.querySelectorAll('.rain-btn').forEach(b => b.disabled = false);
+  }
+  renderMarkers();
+}
+
+// ======================================================
+// RISK ENGINE — works for both CSV cells and localities
+// ======================================================
+function computeRiskForCell(cell, rainfallOverride) {
+  // Use CSV rainfall if predict mode, otherwise use manual
+  const rain     = (predictMode && rainfallOverride == null) ? cell.rainfall_mm : (rainfallOverride ?? currentRainfall);
+  const maxRain  = 250;
+  const maxElev  = 220;
+  const minElev  = 200;
+  const rainfallRisk  = Math.min(100, (rain / maxRain) * 100);
+  const elevationRisk = Math.min(100, Math.max(0, ((maxElev - cell.elevation_m) / (maxElev - minElev)) * 100));
+  const drainageRisk  = Math.min(100, cell.drainage_poorness * 100);
+  const score = 0.5 * rainfallRisk + 0.3 * elevationRisk + 0.2 * drainageRisk;
+  return {
+    score:        Math.min(100, Math.round(score * 10) / 10),
+    rainfallRisk: Math.round(rainfallRisk),
+    elevationRisk:Math.round(elevationRisk),
+    drainageRisk: Math.round(drainageRisk),
+    rainfallUsed: Math.round(rain)
+  };
+}
+
+// ======================================================
+// MARKER RENDER — uses csvCells (50 rows) always
+// ======================================================
+function renderMarkers() {
+  markers.forEach(m => m.remove());
+  markers = [];
+
+  let counts = { Critical: 0, High: 0, Moderate: 0, Low: 0 };
+  let totalPop = 0;
+
+  csvCells.forEach(cell => {
+    const risk = computeRiskForCell(cell);
+    const cat  = getRiskCategory(risk.score);
+    counts[cat.label]++;
+
+    const circle = L.circleMarker([cell.lat, cell.lng], {
+      radius:      markerRadius(risk.score),
+      fillColor:   cat.color,
+      fillOpacity: 0.75,
+      color:       cat.color,
+      weight:      1.5,
+      opacity:     0.9
+    });
+
+    const rainLabel = predictMode
+      ? `${risk.rainfallUsed}mm <span style="color:var(--accent-cyan);font-size:0.58rem">(CSV)</span>`
+      : `${risk.rainfallUsed}mm`;
+
+    const popupHTML = `
+      <div class="popup-inner">
+        <div class="popup-name">Grid Cell #${cell.cell_id}</div>
+        <div class="popup-grid">
+          Rainfall: <span>${risk.rainfallUsed}mm${predictMode?' (CSV)':''}</span>
+          Elevation: <span>${cell.elevation_m.toFixed(1)}m</span>
+          Drainage Poorness: <span>${(cell.drainage_poorness*100).toFixed(1)}</span>
+          CSV Risk Class: <span>${cell.risk_class}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+          <span style="font-size:0.62rem;color:#5a7a96">COMPUTED RISK SCORE</span>
+          <span style="font-size:1rem;font-weight:700;color:${cat.color}">${risk.score}</span>
+        </div>
+        <div class="popup-risk-bar" style="background:${cat.color};width:${risk.score}%;"></div>
+        <div class="popup-risk-label" style="color:${cat.color}">${cat.label} Risk</div>
+      </div>
+    `;
+
+    circle.bindPopup(popupHTML, { maxWidth: 230, minWidth: 190 });
+    circle.on('click', () => showDetailCSV(cell, risk, cat));
+    circle.on('mouseover', function() { this.setStyle({ fillOpacity: 1, weight: 2 }); });
+    circle.on('mouseout',  function() { this.setStyle({ fillOpacity: 0.75, weight: 1.5 }); });
+    circle.addTo(map);
+    markers.push(circle);
+  });
+
+  updateStats(counts);
+  updateWardScores(); // still uses JS localities for ward scores
+}
+
+// ======================================================
+// DETAIL PANEL
+// ======================================================
+function showDetail(loc, risk, cat) {
+  document.getElementById('detailPlaceholder').style.display = 'none';
+  const card = document.getElementById('detailCard');
+  card.classList.add('visible');
+
+  document.getElementById('dName').textContent = loc.name;
+
+  const badge = document.getElementById('dBadge');
+  badge.textContent = cat.label + ' Risk';
+  badge.style.background = cat.bg;
+  badge.style.color = cat.color;
+  badge.style.border = `1px solid ${cat.color}40`;
+
+  document.getElementById('dRainfall').textContent = currentRainfall;
+  document.getElementById('dElev').textContent = loc.elevation;
+  document.getElementById('dDrain').textContent = loc.drainage;
+
+  document.getElementById('dFormula').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:0.65rem;color:var(--text-muted);margin-bottom:8px">
+      <span>Local Population</span><span style="color:var(--accent-cyan);font-weight:700">${(loc.population||0).toLocaleString()}</span>
+      <span>Key Infrastructure</span><span style="color:var(--accent-blue)">${loc.infra || '—'}</span>
+      <span>Ward Zone</span><span style="color:var(--text-primary)">${loc.ward} Delhi</span>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:8px;font-size:0.65rem;color:var(--text-muted)">
+      Score = 0.5×<span class="formula-val">${risk.rainfallRisk}</span>
+      + 0.3×<span class="formula-val">${risk.elevationRisk}</span>
+      + 0.2×<span class="formula-val">${risk.drainageRisk}</span>
+      &nbsp;=&nbsp;<span style="color:${cat.color};font-weight:700;font-size:0.82rem">${risk.score}/100</span>
+    </div>
+  `;
+}
+
+
+// ======================================================
+// DETAIL PANEL — CSV cell version
+// ======================================================
+function showDetailCSV(cell, risk, cat) {
+  document.getElementById('detailPlaceholder').style.display = 'none';
+  const card = document.getElementById('detailCard');
+  card.classList.add('visible');
+
+  document.getElementById('dName').textContent = `Grid Cell #${cell.cell_id} (${cell.row},${cell.col})`;
+
+  const badge = document.getElementById('dBadge');
+  badge.textContent = cat.label + ' Risk';
+  badge.style.background = cat.bg;
+  badge.style.color = cat.color;
+  badge.style.border = `1px solid ${cat.color}40`;
+
+  document.getElementById('dRainfall').textContent = risk.rainfallUsed;
+  document.getElementById('dElev').textContent = cell.elevation_m.toFixed(1);
+  document.getElementById('dDrain').textContent = (cell.drainage_poorness * 100).toFixed(1);
+
+  document.getElementById('dFormula').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:0.65rem;color:var(--text-muted);margin-bottom:8px">
+      <span>Rainfall Source</span><span style="color:var(--accent-cyan);font-weight:700">${predictMode ? 'CSV Data' : 'Manual'}</span>
+      <span>CSV Risk Class</span><span style="color:var(--accent-blue)">${cell.risk_class}</span>
+      <span>CSV Readiness Score</span><span style="color:var(--text-primary)">${cell.readiness_score.toFixed(1)}</span>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:8px;font-size:0.65rem;color:var(--text-muted)">
+      Score = 0.5×<span class="formula-val">${risk.rainfallRisk}</span>
+      + 0.3×<span class="formula-val">${risk.elevationRisk}</span>
+      + 0.2×<span class="formula-val">${risk.drainageRisk}</span>
+      &nbsp;=&nbsp;<span style="color:${cat.color};font-weight:700;font-size:0.82rem">${risk.score}/100</span>
+    </div>
+  `;
+}
+
+// ======================================================
+// STATS UPDATE
+// ======================================================
+function updateStats(counts) {
+  const total = localities.length;
+  document.getElementById('statTotal').textContent = csvCells.length;
+  document.getElementById('statCritical').textContent = counts.Critical;
+  document.getElementById('statHigh').textContent = counts.High;
+
+  document.getElementById('lc-critical').textContent = counts.Critical;
+  document.getElementById('lc-high').textContent = counts.High;
+  document.getElementById('lc-moderate').textContent = counts.Moderate;
+  document.getElementById('lc-low').textContent = counts.Low;
+
+  // Readiness score
+  const criticalWeight = counts.Critical * 3 + counts.High * 1.5;
+  const readiness = Math.max(0, Math.round(100 - (criticalWeight / (total * 3)) * 100));
+  document.getElementById('readinessScore').textContent = readiness + '%';
+
+  // Population at risk — estimated from CSV high/critical cells × avg density
+  const highRiskCells = (counts.Critical + counts.High);
+  const avgPopPerCell = 85000; // ~85K per 0.9km² grid cell in dense Delhi
+  const popAtRisk = highRiskCells * avgPopPerCell;
+  const popFormatted = popAtRisk >= 1000000
+    ? (popAtRisk / 1000000).toFixed(1) + 'M'
+    : (popAtRisk / 1000).toFixed(0) + 'K';
+  document.getElementById('statPopAtRisk').textContent = popFormatted;
+
+  // Action Required card
+  const actionCard = document.getElementById('actionCard');
+  const actionCalm = document.getElementById('actionCalm');
+  const actionMsg  = document.getElementById('actionMsg');
+  if (counts.Critical >= 5) {
+    actionCard.classList.add('visible');
+    actionCalm.classList.remove('visible');
+    actionMsg.innerHTML = `<strong>${counts.Critical} Critical Zones</strong> detected. Emergency threshold exceeded.`;
+  } else if (counts.Critical >= 1) {
+    actionCard.classList.add('visible');
+    actionCalm.classList.remove('visible');
+    actionMsg.innerHTML = `<strong>${counts.Critical} Critical Zone${counts.Critical > 1 ? 's' : ''}</strong> active. Monitor and prepare response teams.`;
+  } else {
+    actionCard.classList.remove('visible');
+    actionCalm.classList.add('visible');
+  }
+
+  // Map summary pills
+  const pills = document.getElementById('mapSummaryPills');
+  pills.innerHTML = `
+    <div class="risk-pill"><div class="dot" style="background:#ff2d55"></div><span class="count">${counts.Critical}</span> Critical</div>
+    <div class="risk-pill"><div class="dot" style="background:#ff6b2b"></div><span class="count">${counts.High}</span> High</div>
+    <div class="risk-pill"><div class="dot" style="background:#ffc300"></div><span class="count">${counts.Moderate}</span> Moderate</div>
+    <div class="risk-pill"><div class="dot" style="background:#00e676"></div><span class="count">${counts.Low}</span> Low</div>
+  `;
+}
+
+// ======================================================
+// WARD SCORES
+// ======================================================
+function updateWardScores() {
+  const wardMap = {};
+  localities.forEach(loc => {
+    const risk = computeRisk(loc, currentRainfall);
+    if (!wardMap[loc.ward]) wardMap[loc.ward] = { total: 0, count: 0 };
+    wardMap[loc.ward].total += risk.score;
+    wardMap[loc.ward].count++;
+  });
+
+  const wards = Object.entries(wardMap).map(([name, d]) => ({
+    name,
+    avgRisk: Math.round(d.total / d.count),
+    readiness: Math.round(100 - (d.total / d.count))
+  })).sort((a, b) => b.avgRisk - a.avgRisk);
+
+  const container = document.getElementById('wardScoreList');
+  container.innerHTML = '';
+
+  wards.forEach(w => {
+    const cat = getRiskCategory(w.avgRisk);
+    const readiness = Math.max(0, 100 - w.avgRisk);
+    const div = document.createElement('div');
+    div.className = 'ward-item';
+    div.innerHTML = `
+      <div class="ward-name">${w.name} Delhi</div>
+      <div class="ward-bar-wrap">
+        <div class="ward-bar" style="width:${w.avgRisk}%;background:${cat.color}"></div>
+      </div>
+      <div class="ward-score-val" style="color:${cat.color}">${w.avgRisk}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// ======================================================
+// RAINFALL SETTER
+// ======================================================
+function setRainfall(val) {
+  if (predictMode) return; // locked in predict mode
+  currentRainfall = val;
+  document.getElementById('rainfallDisplay').textContent = val;
+
+  document.querySelectorAll('.rain-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.val) === val);
+  });
+
+  document.getElementById('detailPlaceholder').style.display = 'flex';
+  document.getElementById('detailCard').classList.remove('visible');
+
+  renderMarkers();
+}
+
+// ======================================================
+// INIT
+// ======================================================
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    initMap();
+    document.getElementById('loadingOverlay').classList.add('hidden');
+  }, 1400);
+});
+
+
+// ======================================================
+// LOCATION FINDER
+// ======================================================
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function findNearestHotspot(userLat, userLng) {
+  let nearest = null, minDist = Infinity;
+  localities.forEach(loc => {
+    const d = haversineKm(userLat, userLng, loc.lat, loc.lng);
+    if (d < minDist) { minDist = d; nearest = loc; }
+  });
+  return { loc: nearest, dist: minDist };
+}
+
+function renderLocResult(userLat, userLng, label) {
+  const { loc, dist } = findNearestHotspot(userLat, userLng);
+  const risk = computeRisk(loc, currentRainfall);
+  const cat  = getRiskCategory(risk.score);
+
+  const advice = {
+    Critical: "⚠️ High flood probability in your area. Avoid basements, ground floors during heavy rain. Monitor DDMA alerts closely.",
+    High:     "⚡ Elevated risk zone. Ensure drainage near your home is clear. Keep emergency contacts ready.",
+    Moderate: "🟡 Moderate risk. Stay informed during monsoon events. Avoid low-lying roads after heavy rain.",
+    Low:      "✅ Relatively low flood risk in your vicinity. Normal precautions apply."
+  };
+
+  const inZone = dist < 3; // within 3 km = "in" the hotspot zone
+  const distText = inZone
+    ? `You are within the <strong style="color:${cat.color}">${loc.name}</strong> hotspot zone`
+    : `Nearest monitored zone: <strong style="color:var(--text-primary)">${loc.name}</strong> &nbsp;(${dist.toFixed(1)} km away)`;
+
+  document.getElementById('locResult').innerHTML = `
+    <div class="loc-result-header">
+      <div class="loc-result-name">${label}</div>
+      <div class="loc-result-badge" style="background:${cat.bg};color:${cat.color};border:1px solid ${cat.color}40">${cat.label} Risk</div>
+    </div>
+    <div class="loc-result-body">
+      <div class="loc-result-dist">${distText}</div>
+      <div class="loc-metrics-mini">
+        <div class="loc-metric">
+          <div class="loc-metric-val" style="color:${cat.color}">${risk.score}</div>
+          <div class="loc-metric-label">Risk Score</div>
+        </div>
+        <div class="loc-metric">
+          <div class="loc-metric-val">${loc.elevation}m</div>
+          <div class="loc-metric-label">Elevation</div>
+        </div>
+        <div class="loc-metric">
+          <div class="loc-metric-val">${loc.drainage}</div>
+          <div class="loc-metric-label">Drainage</div>
+        </div>
+      </div>
+      <div class="loc-advice" style="border-color:${cat.color}60;color:var(--text-muted)">
+        ${advice[cat.label]}
+      </div>
+    </div>
+  `;
+  document.getElementById('locResult').classList.add('visible');
+  document.getElementById('locNone').classList.remove('visible');
+
+  // Pan map to nearest hotspot
+  if (map) map.setView([loc.lat, loc.lng], 13, { animate: true });
+
+  // Add a user marker
+  if (window._userMarker) window._userMarker.remove();
+  window._userMarker = L.circleMarker([userLat, userLng], {
+    radius: 8, fillColor: '#fff', fillOpacity: 1,
+    color: cat.color, weight: 3, opacity: 1
+  }).bindTooltip(label, { permanent: false }).addTo(map);
+}
+
+function searchLocation() {
+  const q = document.getElementById('locInput').value.trim().toLowerCase();
+  if (!q) return;
+
+  // Try exact / partial match in dataset first
+  const match = localities.find(l => l.name.toLowerCase().includes(q));
+  if (match) {
+    renderLocResult(match.lat, match.lng, match.name);
+    return;
+  }
+
+  // Fuzzy geocode within Delhi using Nominatim (free, no key needed)
+  document.getElementById('locLoading').classList.add('visible');
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+', Delhi, India')}&format=json&limit=1`;
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('locLoading').classList.remove('visible');
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        const shortName = display_name.split(',')[0];
+        renderLocResult(parseFloat(lat), parseFloat(lon), shortName);
+      } else {
+        document.getElementById('locNone').textContent = `"${q}" not found in Delhi. Try a locality name like Shahdara or Dwarka.`;
+        document.getElementById('locNone').classList.add('visible');
+        document.getElementById('locResult').classList.remove('visible');
+      }
+    })
+    .catch(() => {
+      document.getElementById('locLoading').classList.remove('visible');
+      document.getElementById('locNone').textContent = 'Could not reach geocoding service. Try typing a locality from the map.';
+      document.getElementById('locNone').classList.add('visible');
+    });
+}
+
+function useCurrentLocation() {
+  if (!navigator.geolocation) {
+    alert('Geolocation not supported in your browser.');
+    return;
+  }
+  document.getElementById('locLoading').classList.add('visible');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      document.getElementById('locLoading').classList.remove('visible');
+      const { latitude, longitude } = pos.coords;
+      renderLocResult(latitude, longitude, 'Your Location');
+      document.getElementById('locInput').value = 'Current location';
+    },
+    () => {
+      document.getElementById('locLoading').classList.remove('visible');
+      document.getElementById('locNone').textContent = 'Location access denied. Please enter your area manually.';
+      document.getElementById('locNone').classList.add('visible');
+    },
+    { timeout: 8000 }
+  );
+}
+
+// Allow Enter key to trigger search
+document.getElementById('locInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchLocation();
+});
+
+
+
+async function triggerBroadcast() {
+  // Calculate the risk details for the message
+  let critCount = 0;
+  localities.forEach(loc => {
+    const risk = computeRisk(loc, currentRainfall);
+    if (getRiskCategory(risk.score).label === 'Critical') critCount++;
+  });
+
+  const alertMsg = `${critCount} zones have reached CRITICAL flood thresholds. Immediate action required.`;
+
+  // Change button text to show loading
+  const btn = document.querySelector('.broadcast-btn');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = 'Sending...';
+
+  try {
+    const response = await fetch('http://localhost:3000/send-alert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: alertMsg })
+    });
+
+    const result = await response.json();
+
+    if (result.success) { showToast(`✅ Alert Successfully Sent! Check your phone.`); } 
+    else { showToast(`❌ Twilio Error: ${data.message}`); }
+  } catch (err) {
+    showToast(`❌ Connection Failed. Is python server.py running?`);
+  } finally {
+    // Restore button text
+    btn.innerHTML = originalHtml;
+  }
+}
+
+function showToast(msg) {
+  const toast = document.createElement('div');
+  toast.style.cssText = `position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:#0d1520; border:1px solid var(--risk-critical); border-radius:6px; padding:14px 22px; z-index:9999; font-family:'DM Sans',sans-serif; font-size:0.75rem; color:var(--text-primary); box-shadow:0 8px 32px rgba(0,0,0,0.5); text-align:center; animation: fadeInUp 0.3s ease both;`;
+  toast.innerHTML = `<div style="font-weight:700;font-size:0.85rem;">${msg}</div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.style.opacity = '0', 3500);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+
+// ── Rain animation ────────────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('rainCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let drops = [];
+  function resize() {
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+  }
+  function mkDrop() {
+    return {
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      len: Math.random() * 14 + 8,
+      speed: Math.random() * 3 + 4,
+      opacity: Math.random() * 0.35 + 0.08,
+      width: Math.random() * 0.6 + 0.3
+    };
+  }
+  function init() {
+    resize();
+    drops = Array.from({length: 120}, mkDrop);
+  }
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drops.forEach(d => {
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x - d.len * 0.15, d.y + d.len);
+      ctx.strokeStyle = `rgba(0,180,255,${d.opacity})`;
+      ctx.lineWidth = d.width;
+      ctx.stroke();
+      d.y += d.speed;
+      if (d.y > canvas.height + 20) { Object.assign(d, mkDrop(), {y: -20}); }
+    });
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', resize);
+  init();
+  draw();
+})();
+
+</script>
+</div></div></body>
+</html>
